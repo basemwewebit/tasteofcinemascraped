@@ -1,0 +1,8 @@
+# Python (سكرابر tasteofcinemascraped)
+tasteofcinemascraped/.venv/
+tasteofcinemascraped/.env
+tasteofcinemascraped/__pycache__/
+*.pyc
+
+.venv/
+.env
