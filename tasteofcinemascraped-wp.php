@@ -10,6 +10,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
+	require_once __DIR__ . '/vendor/autoload.php';
+}
+
+if ( file_exists( __DIR__ . '/vendor/woocommerce/action-scheduler/action-scheduler.php' ) ) {
+	require_once __DIR__ . '/vendor/woocommerce/action-scheduler/action-scheduler.php';
+}
+
+require_once __DIR__ . '/includes/class-toc-quality-db.php';
+// Load other classes when they are implemented, or load them here now since they are empty
+require_once __DIR__ . '/includes/class-toc-quality-engine.php';
+require_once __DIR__ . '/includes/class-toc-quality-scheduler.php';
+require_once __DIR__ . '/includes/class-toc-quality-rest.php';
+require_once __DIR__ . '/includes/class-toc-quality-admin.php';
+
+register_activation_hook( __FILE__, array( 'TOC_Quality_DB', 'install_schema' ) );
+
 define( 'TCOC_SCRAPED_OPTION_SECRET', 'tasteofcinemascraped_secret' );
 define( 'TCOC_SCRAPED_META_SOURCE_URL', '_tasteofcinema_source_url' );
 define( 'TCOC_SCRAPED_WEBP_QUALITY', 82 );
@@ -17,6 +34,13 @@ define( 'TCOC_SCRAPED_WEBP_QUALITY', 82 );
 add_action( 'rest_api_init', 'tasteofcinemascraped_register_routes' );
 add_action( 'admin_menu', 'tasteofcinemascraped_admin_menu' );
 add_action( 'admin_init', 'tasteofcinemascraped_save_settings' );
+
+// Quality Engine Hooks
+add_action( 'rest_api_init', array( 'TOC_Quality_REST', 'register_routes' ) );
+add_action( 'admin_menu', array( 'TOC_Quality_Admin', 'register_menus' ) );
+add_action( 'admin_init', array( 'TOC_Quality_Admin', 'register_ajax_hooks' ) );
+add_action( 'admin_init', array( 'TOC_Quality_Admin', 'register_list_table_hooks' ) );
+add_action( 'init', array( 'TOC_Quality_Scheduler', 'register_hooks' ) );
 
 function tasteofcinemascraped_admin_menu() {
 	add_options_page(
@@ -169,10 +193,25 @@ function tasteofcinemascraped_import_callback( WP_REST_Request $request ) {
 		set_post_thumbnail( $post_id, $featured_attachment_id );
 	}
 
+	do_action( 'tasteofcinemascraped_post_imported', $post_id, 'editorial' );
+
 	return new WP_REST_Response( array(
 		'success' => true,
 		'post_id' => $post_id,
 	), 201 );
+}
+
+add_action( 'tasteofcinemascraped_post_imported', 'toc_quality_auto_run', 10, 2 );
+
+function toc_quality_auto_run( int $post_id, string $content_type = 'editorial' ) {
+	if ( ! class_exists( 'TOC_Quality_DB' ) ) return;
+	
+	if ( TOC_Quality_DB::get_auto_run_on_import() ) {
+		$job_id = TOC_Quality_DB::create_job( $post_id, $content_type, get_current_user_id() ?: 1 );
+		if ( class_exists( 'TOC_Quality_Scheduler' ) ) {
+			TOC_Quality_Scheduler::enqueue_async_job( $job_id, true );
+		}
+	}
 }
 
 function tasteofcinemascraped_find_post_by_source_url( $url ) {

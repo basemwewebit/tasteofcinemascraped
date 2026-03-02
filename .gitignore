@@ -6,3 +6,16 @@ tasteofcinemascraped/__pycache__/
 
 .venv/
 .env
+
+# PHP
+vendor/
+*.log
+*.cache
+
+# Universal
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+.vscode/
+.idea/
