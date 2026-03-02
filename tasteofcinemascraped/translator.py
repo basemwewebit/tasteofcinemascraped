@@ -54,18 +54,25 @@ def _call_openrouter(text: str, keep_phrases: list[str] | None = None) -> str:
     user_content = _build_user_message(text, keep_phrases or [])
     payload = {
         "model": OPENROUTER_MODEL,
+        "temperature": 0.0,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_content},
         ],
     }
-    with httpx.Client(timeout=120.0) as client:
+    with httpx.Client(timeout=1200.0) as client:
         resp = client.post(url, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
     choice = data.get("choices", [{}])[0]
     message = choice.get("message", {})
-    return (message.get("content") or "").strip()
+    content = (message.get("content") or "").strip()
+    
+    # Strip markdown block wrappers like ```html or ``` if the model wraps the output
+    content = re.sub(r"^```[a-zA-Z0-9_-]*\n", "", content)
+    content = re.sub(r"\n```$", "", content)
+    
+    return content.strip()
 
 
 PRIMARY_CATEGORY_PROMPT = """You classify film/cinema articles. Given the article title and excerpt below, output exactly two lines:
