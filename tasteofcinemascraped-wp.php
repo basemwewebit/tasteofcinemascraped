@@ -2,8 +2,14 @@
 /**
  * Plugin Name: Taste of Cinema Scraped Import
  * Description: REST endpoint to import scraped + translated articles from tasteofcinemascraped (Python). Requires secret key.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Author: Taste of Cinema Arabi
+ */
+
+/**
+ * CHANGELOG:
+ * 1.1.0: [BREAKING] Disabled dynamic category creation for 'category' taxonomy. 
+ *        Implemented predefined taxonomy (10 categories).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -24,8 +30,16 @@ require_once __DIR__ . '/includes/class-toc-quality-engine.php';
 require_once __DIR__ . '/includes/class-toc-quality-scheduler.php';
 require_once __DIR__ . '/includes/class-toc-quality-rest.php';
 require_once __DIR__ . '/includes/class-toc-quality-admin.php';
+require_once __DIR__ . '/includes/class-toc-category-config.php';
+require_once __DIR__ . '/includes/class-toc-category-manager.php';
 
-register_activation_hook( __FILE__, array( 'TOC_Quality_DB', 'install_schema' ) );
+register_activation_hook(
+	__FILE__,
+	function () {
+		TOC_Quality_DB::install_schema();
+		TOC_Category_Manager::seed_all();
+	}
+);
 
 define( 'TCOC_SCRAPED_OPTION_SECRET', 'tasteofcinemascraped_secret' );
 define( 'TCOC_SCRAPED_META_SOURCE_URL', '_tasteofcinema_source_url' );
@@ -40,7 +54,10 @@ add_action( 'rest_api_init', array( 'TOC_Quality_REST', 'register_routes' ) );
 add_action( 'admin_menu', array( 'TOC_Quality_Admin', 'register_menus' ) );
 add_action( 'admin_init', array( 'TOC_Quality_Admin', 'register_ajax_hooks' ) );
 add_action( 'admin_init', array( 'TOC_Quality_Admin', 'register_list_table_hooks' ) );
+add_action( 'add_meta_boxes', array( 'TOC_Quality_Admin', 'register_category_metabox' ) );
+add_action( 'save_post', array( 'TOC_Quality_Admin', 'save_category_metabox' ) );
 add_action( 'init', array( 'TOC_Quality_Scheduler', 'register_hooks' ) );
+add_action( 'tasteofcinemascraped_seed_categories', array( 'TOC_Category_Manager', 'seed_all' ) );
 
 function tasteofcinemascraped_admin_menu() {
 	add_options_page(
@@ -119,6 +136,8 @@ function tasteofcinemascraped_permission_check( WP_REST_Request $request ) {
 }
 
 function tasteofcinemascraped_import_callback( WP_REST_Request $request ) {
+	TOC_Category_Manager::seed_all(); // Ensure categories exist before resolution.
+
 	$source_url = $request->get_param( 'source_url' );
 	$existing   = tasteofcinemascraped_find_post_by_source_url( $source_url );
 	if ( $existing ) {
@@ -180,12 +199,12 @@ function tasteofcinemascraped_import_callback( WP_REST_Request $request ) {
 	update_post_meta( $post_id, TCOC_SCRAPED_META_SOURCE_URL, $source_url );
 
 	$tag_ids = tasteofcinemascraped_get_or_create_terms( $request->get_param( 'tags' ), 'post_tag' );
-	$cat_ids = tasteofcinemascraped_get_or_create_terms( $request->get_param( 'categories' ), 'category' );
+	$cat_id  = TOC_Category_Manager::resolve( $request->get_param( 'categories' ), (int) $post_id );
 	if ( ! empty( $tag_ids ) ) {
 		wp_set_post_terms( $post_id, $tag_ids, 'post_tag' );
 	}
-	if ( ! empty( $cat_ids ) ) {
-		wp_set_post_terms( $post_id, $cat_ids, 'category' );
+	if ( ! empty( $cat_id ) ) {
+		wp_set_post_terms( $post_id, array( $cat_id ), 'category' );
 	}
 
 	$featured_attachment_id = tasteofcinemascraped_get_first_uploaded_attachment_id();
@@ -267,6 +286,12 @@ function tasteofcinemascraped_get_or_create_author( $author_name, $author_bio, $
 }
 
 function tasteofcinemascraped_get_or_create_terms( $items, $taxonomy ) {
+	if ( $taxonomy === 'category' ) {
+		// INVARIANT: categories are now handled by TOC_Category_Manager::resolve()
+		// and must never be created dynamically in this pipeline.
+		return array();
+	}
+
 	if ( empty( $items ) || ! is_array( $items ) ) {
 		return array();
 	}
