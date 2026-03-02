@@ -2,7 +2,7 @@
 
 **Feature Branch**: `002-predefined-categories`  
 **Created**: 2026-03-02  
-**Status**: Draft  
+**Status**: Implemented  
 **Input**: User description: "نظام تصنيفات محدد مسبقاً لمحتوى الأفلام - حد أقصى 15 تصنيف رئيسي معرّف مسبقاً بناءً على tasteofcinema.com، ربط المواد الجديدة بأحد هذه التصنيفات عبر نظام تصنيفات ووردبريس، وإلغاء آلية إنشاء التصنيفات الديناميكية"
 
 ---

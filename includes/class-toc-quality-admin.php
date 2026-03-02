@@ -210,4 +210,78 @@ class TOC_Quality_Admin {
 			wp_send_json_error( $e->getMessage() );
 		}
 	}
+
+	/**
+	 * Registers the replacement category meta box and removes the default one.
+	 *
+	 * @return void
+	 */
+	public static function register_category_metabox(): void {
+		remove_meta_box( 'categorydiv', 'post', 'side' );
+		add_meta_box(
+			'toc-category-select',
+			'التصنيف',
+			array( self::class, 'render_category_metabox' ),
+			'post',
+			'side',
+			'high'
+		);
+	}
+
+	/**
+	 * Renders the custom category drop-down meta box.
+	 *
+	 * @param WP_Post $post Current post object.
+	 * @return void
+	 */
+	public static function render_category_metabox( WP_Post $post ): void {
+		$predefined_ids = TOC_Category_Manager::get_predefined_term_ids();
+		$current_cats   = get_the_category( $post->ID );
+		$selected       = ! empty( $current_cats ) ? $current_cats[0]->term_id : 0;
+
+		wp_nonce_field( 'toc_save_category', 'toc_category_nonce' );
+
+		echo '<div class="toc-category-selector-wrap">';
+		wp_dropdown_categories(
+			array(
+				'hide_empty' => false,
+				'include'    => $predefined_ids,
+				'name'       => 'post_category[]',
+				'id'         => 'toc-post-category',
+				'selected'   => $selected,
+				'class'      => 'widefat',
+			)
+		);
+		echo '<p class="description">تم تقييد التصنيفات للحفاظ على بنية الموقع.</p>';
+		echo '</div>';
+	}
+
+	/**
+	 * Saves the category selection from the custom meta box.
+	 *
+	 * @param int $post_id Post ID.
+	 * @return void
+	 */
+	public static function save_category_metabox( int $post_id ): void {
+		if ( ! isset( $_POST['toc_category_nonce'] ) || ! wp_verify_nonce( $_POST['toc_category_nonce'], 'toc_save_category' ) ) {
+			return;
+		}
+
+		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
+			return;
+		}
+
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
+		if ( isset( $_POST['post_category'] ) && is_array( $_POST['post_category'] ) ) {
+			$term_id        = (int) $_POST['post_category'][0];
+			$predefined_ids = TOC_Category_Manager::get_predefined_term_ids();
+
+			if ( in_array( $term_id, $predefined_ids, true ) ) {
+				wp_set_post_terms( $post_id, array( $term_id ), 'category' );
+			}
+		}
+	}
 }
