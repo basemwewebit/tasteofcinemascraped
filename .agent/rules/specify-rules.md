@@ -26,10 +26,10 @@ cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLO
 PHP 8.1+ (WordPress requirement; PSR-12 strict types), Python 3.11+ (existing pipeline, no changes required): Follow standard conventions
 
 ## Recent Changes
+- 001-wp-admin-scraper: Added [if applicable, e.g., PostgreSQL, CoreData, files or N/A]
 - 001-clean-scraped-content: Added PHP 8.x + WordPress Core REST API, `DOMDocument` for HTML parsing
 - 002-predefined-categories: Added PHP 8.1+ (WordPress plugin host) + Python 3.11 (scraper client)
 
-- 001-translation-quality: Added PHP 8.1+ (WordPress requirement; PSR-12 strict types), Python 3.11+ (existing pipeline, no changes required) + WordPress Plugin API, Action Scheduler ≥3.6 (standalone Composer package), OpenRouter API via `wp_remote_post()` (existing `OPENROUTER_API_KEY` env var reused)
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
