@@ -33,6 +33,9 @@ require_once __DIR__ . '/includes/class-toc-quality-admin.php';
 require_once __DIR__ . '/includes/class-toc-category-config.php';
 require_once __DIR__ . '/includes/class-toc-category-manager.php';
 require_once __DIR__ . '/includes/class-toc-content-cleaner.php';
+require_once __DIR__ . '/src/Core/ScraperRunner.php';
+require_once __DIR__ . '/src/Admin/ScraperAjaxHandler.php';
+require_once __DIR__ . '/src/Admin/ScraperSettingsPage.php';
 
 register_activation_hook(
 	__FILE__,
@@ -59,6 +62,17 @@ add_action( 'add_meta_boxes', array( 'TOC_Quality_Admin', 'register_category_met
 add_action( 'save_post', array( 'TOC_Quality_Admin', 'save_category_metabox' ) );
 add_action( 'init', array( 'TOC_Quality_Scheduler', 'register_hooks' ) );
 add_action( 'tasteofcinemascraped_seed_categories', array( 'TOC_Category_Manager', 'seed_all' ) );
+
+// Run Scraper Admin Module Init
+add_action( 'plugins_loaded', function() {
+    $runner = new \TasteOfCinema\Core\ScraperRunner( __DIR__ );
+    
+    $settingsPage = new \TasteOfCinema\Admin\ScraperSettingsPage();
+    $settingsPage->init();
+
+    $ajaxHandler = new \TasteOfCinema\Admin\ScraperAjaxHandler();
+    $ajaxHandler->init( $runner );
+});
 
 function tasteofcinemascraped_admin_menu() {
 	add_options_page(
@@ -203,7 +217,8 @@ function tasteofcinemascraped_import_callback( WP_REST_Request $request ) {
 		return new WP_REST_Response( array( 'error' => $post_id->get_error_message() ), 500 );
 	}
 
-	update_post_meta( $post_id, TCOC_SCRAPED_META_SOURCE_URL, $source_url );
+	$normalized_source_url = rtrim( $source_url, '/' );
+	update_post_meta( $post_id, TCOC_SCRAPED_META_SOURCE_URL, $normalized_source_url );
 
 	$tag_ids = tasteofcinemascraped_get_or_create_terms( $request->get_param( 'tags' ), 'post_tag' );
 	$cat_id  = TOC_Category_Manager::resolve( $request->get_param( 'categories' ), (int) $post_id );
@@ -241,13 +256,21 @@ function toc_quality_auto_run( int $post_id, string $content_type = 'editorial' 
 }
 
 function tasteofcinemascraped_find_post_by_source_url( $url ) {
+	$normalized_url = rtrim( $url, '/' );
+	$slashed_url    = $normalized_url . '/';
+
 	$posts = get_posts( array(
 		'post_type'      => 'post',
 		'post_status'    => 'any',
-		'meta_key'       => TCOC_SCRAPED_META_SOURCE_URL,
-		'meta_value'     => $url,
 		'posts_per_page' => 1,
 		'fields'         => 'ids',
+		'meta_query'     => array(
+			array(
+				'key'     => TCOC_SCRAPED_META_SOURCE_URL,
+				'value'   => array( $normalized_url, $slashed_url ),
+				'compare' => 'IN',
+			),
+		),
 	) );
 	return ! empty( $posts ) ? (int) $posts[0] : 0;
 }

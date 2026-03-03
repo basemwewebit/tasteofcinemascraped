@@ -1,0 +1,7 @@
+Decision: The plugin will use WordPress AJAX (`wp_ajax_` actions) to initiate the background process. Rather than launching a long-running, timeout-prone PHP request, the initial AJAX call will trigger a non-blocking asynchronous request (e.g., using `wp_remote_post` with a short timeout and `blocking => false`, or a background processing library like Action Scheduler or WP Background Processing) to start the scraping engine. Wait, the clarification resolved this to "Real-time AJAX polling". The simplest and most robust way to achieve this without complex queueing libraries is to use AJAX to trigger individual scraping tasks chunk by chunk (e.g. one month/page at a time, or streaming the CLI output via `proc_open`).
+Rationale: Real-time UI requirement means the admin browser is active. Using AJAX polling to stream `proc_open` output or batch processing maintains responsiveness and prevents PHP `max_execution_time` timeouts.
+Alternatives considered: Native WP-Cron (no real-time UI feedback), Action Scheduler (adds a large dependency, feedback is harder to stream live).
+
+Decision: The system will rely on standard PHP `shell_exec` or `proc_open` to interact with the pre-existing `.venv`. The admin UI will surface any validation errors immediately before attempting a scrape.
+Rationale: Respects the fail-fast requirement and security concerns about auto-installing via `pip`.
+Alternatives considered: Auto-installing dependencies via shell scripts.
