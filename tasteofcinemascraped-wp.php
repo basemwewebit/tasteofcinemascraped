@@ -32,6 +32,7 @@ require_once __DIR__ . '/includes/class-toc-quality-rest.php';
 require_once __DIR__ . '/includes/class-toc-quality-admin.php';
 require_once __DIR__ . '/includes/class-toc-category-config.php';
 require_once __DIR__ . '/includes/class-toc-category-manager.php';
+require_once __DIR__ . '/includes/class-toc-content-cleaner.php';
 
 register_activation_hook(
 	__FILE__,
@@ -162,6 +163,12 @@ function tasteofcinemascraped_import_callback( WP_REST_Request $request ) {
 	if ( ! empty( $images ) && is_array( $images ) ) {
 		$content = tasteofcinemascraped_replace_remote_images_with_uploads( $content, $images );
 	}
+
+	$featured_attachment_id = tasteofcinemascraped_get_first_uploaded_attachment_id();
+	$featured_attachment_url = $featured_attachment_id ? wp_get_attachment_url( $featured_attachment_id ) : '';
+	
+	$content = TOC_Content_Cleaner::clean( $content, $featured_attachment_url ? (string) $featured_attachment_url : '' );
+
 
 	$post_data = array(
 		'post_title'   => $request->get_param( 'title' ),
