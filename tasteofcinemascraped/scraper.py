@@ -381,7 +381,14 @@ def discover_article_urls_from_archive(
     parsed = urlparse(_normalize_url(archive_url))
     base_site = f"{parsed.scheme}://{parsed.netloc}"
     archive_path = (parsed.path or "").rstrip("/") or "/"
-    archive_path_prefix = archive_path if archive_path.endswith("/") else archive_path + "/"
+    
+    # TasteOfCinema article URLs are typically /YYYY/slug/, so use /YYYY/ as prefix even if scraping /YYYY/MM/
+    m = re.match(r"^/(\d{4})", archive_path)
+    if m:
+        article_prefix = f"/{m.group(1)}/"
+    else:
+        article_prefix = archive_path if archive_path.endswith("/") else archive_path + "/"
+        
     seen: set[str] = set()
     ordered: list[str] = []
 
@@ -405,7 +412,7 @@ def discover_article_urls_from_archive(
                 if not href or not href.strip():
                     continue
                 full = urljoin(base_site, href.strip().split("#")[0])
-                if not _is_article_url(full, parsed.netloc, archive_path_prefix):
+                if not _is_article_url(full, parsed.netloc, article_prefix):
                     continue
                 canonical = _normalize_article_url(full)
                 if canonical not in seen:

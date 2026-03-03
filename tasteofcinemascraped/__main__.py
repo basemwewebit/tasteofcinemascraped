@@ -97,6 +97,7 @@ def main() -> int:
     )
     parser.add_argument("url", nargs="?", default="", help="Single article URL")
     parser.add_argument("--year", type=int, metavar="YEAR", help="Scrape all articles from this year (e.g. 2026). Discovers from archive then runs each.")
+    parser.add_argument("--month", type=int, metavar="MONTH", help="Optional. Used with --year to scrape a single month (e.g. 8 or 08).")
     parser.add_argument("--archive", type=str, metavar="URL", help="Scrape all articles from this archive URL (e.g. https://www.tasteofcinema.com/2026/).")
     parser.add_argument("--dry-run", action="store_true", help="Scrape and translate only; do not send to WordPress.")
     parser.add_argument("--no-translate", action="store_true", help="Skip translation; send scraped content as-is.")
@@ -104,8 +105,12 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.year:
-        archive_url = f"{TASTEOFcinema_BASE}/{args.year}/"
-        print(f"Discovering articles from year {args.year}: {archive_url}", flush=True)
+        if args.month:
+            archive_url = f"{TASTEOFcinema_BASE}/{args.year}/{args.month:02d}/"
+            print(f"Discovering articles from {args.year}/{args.month:02d}: {archive_url}", flush=True)
+        else:
+            archive_url = f"{TASTEOFcinema_BASE}/{args.year}/"
+            print(f"Discovering articles from year {args.year}: {archive_url}", flush=True)
         try:
             urls = discover_article_urls_from_archive(archive_url)
         except Exception as e:
