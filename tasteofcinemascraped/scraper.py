@@ -272,6 +272,25 @@ def _extract_from_response(page, base_url: str) -> dict:
         except Exception:
             continue
 
+    if not categories:
+        try:
+            articles = page.css("article")
+            if articles:
+                classes = articles[0].attrib.get("class", "")
+                cats = re.findall(r'category-([a-z0-9-]+)', classes)
+                if cats:
+                    categories.extend([c.replace("-", " ").title() for c in cats])
+        except Exception:
+            pass
+
+    if not categories:
+        try:
+            breadcrumbs = page.css("a.taxonomy.category span")
+            if breadcrumbs:
+                categories = _get_all_text(breadcrumbs.getall() if hasattr(breadcrumbs, "getall") else breadcrumbs)
+        except Exception:
+            pass
+
     images = []
     for sel in SELECTORS["images_in_content"].split(", "):
         try:

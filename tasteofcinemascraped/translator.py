@@ -76,9 +76,24 @@ def _call_openrouter(text: str, keep_phrases: list[str] | None = None) -> str:
 
 
 PRIMARY_CATEGORY_PROMPT = """You classify film/cinema articles. Given the article title and excerpt below, output exactly two lines:
-Line 1: One category name in Arabic (short phrase, 2–5 words) that best classifies this article. Use consistent phrasing for the same type of topic (e.g. always "أفلام الإثارة والجريمة" for crime thrillers).
-Line 2: An English slug for that category: lowercase, hyphens, no spaces (e.g. crime-thriller-movies). Use the same slug for the same type of topic so articles can be grouped under one category.
-Output only these two lines, nothing else."""
+Line 1: One category name in Arabic from the EXACT list below that best classifies this article.
+Line 2: The exact English slug for that category from the list below.
+
+VALID CATEGORIES (Name, Slug):
+- قوائم أفلام (film-lists)
+- مقالات وتحليلات (features)
+- قوائم مخرجين وممثلين (people-lists)
+- قوائم متنوعة (other-lists)
+- مراجعات أفلام (reviews)
+- أفضل أفلام السنة (best-of-year)
+- أفلام حسب النوع (by-genre)
+- أفلام حسب البلد (by-country)
+- أفلام حسب العقد (by-decade)
+- مقارنات وتصنيفات (rankings)
+
+Output only these two lines, nothing else. Example:
+أفلام حسب العقد
+by-decade"""
 
 
 def _derive_primary_category(title: str, excerpt: str) -> dict[str, str] | None:
@@ -144,24 +159,17 @@ def translate_article(scraped: ScrapedArticle, translate_bio: bool = True) -> Tr
         name_ar = _call_openrouter(t, keep_phrases)
         tags_with_slug.append({"name": name_ar, "slug": slug or _slugify_english(name_ar)})
 
-    categories_with_slug: list[dict] = []
-    for c in scraped.categories:
-        if not (c or "").strip():
-            continue
-        slug = _slugify_english(c)
-        name_ar = _call_openrouter(c, keep_phrases)
-        categories_with_slug.append({"name": name_ar, "slug": slug or _slugify_english(name_ar)})
-
-    # Primary category from title + excerpt: create once, reuse by slug for later articles
+    # Primary category from title + excerpt: strictly use one of the predefined 10
     excerpt_plain = re.sub(r"<[^>]+>", " ", content_ar or "")
     excerpt_plain = re.sub(r"\s+", " ", excerpt_plain).strip()[:400]
     primary = _derive_primary_category(title_ar, excerpt_plain)
+    
+    categories_with_slug: list[dict] = []
     if primary:
-        existing_slugs = {c.get("slug") or "" for c in categories_with_slug}
-        if (primary.get("slug") or "").strip() and primary["slug"] not in existing_slugs:
-            categories_with_slug.insert(0, primary)
-        elif not existing_slugs:
-            categories_with_slug.insert(0, primary)
+        categories_with_slug.append(primary)
+    else:
+        # Fallback just in case AI fails
+        categories_with_slug.append({"name": "قوائم أفلام", "slug": "film-lists"})
 
     return TranslatedArticle(
         source_url=scraped.source_url,
