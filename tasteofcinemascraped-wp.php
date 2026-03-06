@@ -20,6 +20,10 @@ if ( file_exists( __DIR__ . '/vendor/autoload.php' ) ) {
 	require_once __DIR__ . '/vendor/autoload.php';
 }
 
+define( 'TCOC_SCRAPED_OPTION_SECRET', 'tasteofcinemascraped_secret' );
+define( 'TCOC_SCRAPED_META_SOURCE_URL', '_tasteofcinema_source_url' );
+define( 'TCOC_SCRAPED_WEBP_QUALITY', 82 );
+
 if ( file_exists( __DIR__ . '/vendor/woocommerce/action-scheduler/action-scheduler.php' ) ) {
 	require_once __DIR__ . '/vendor/woocommerce/action-scheduler/action-scheduler.php';
 }
@@ -36,6 +40,10 @@ require_once __DIR__ . '/includes/class-toc-content-cleaner.php';
 require_once __DIR__ . '/src/Core/ScraperRunner.php';
 require_once __DIR__ . '/src/Admin/ScraperAjaxHandler.php';
 require_once __DIR__ . '/src/Admin/ScraperSettingsPage.php';
+require_once __DIR__ . '/src/Models/PostPayload.php';
+require_once __DIR__ . '/src/Services/PublishRetryQueue.php';
+require_once __DIR__ . '/src/Services/RemotePublisherService.php';
+require_once __DIR__ . '/src/Providers/DualPublishingServiceProvider.php';
 
 register_activation_hook(
 	__FILE__,
@@ -45,15 +53,22 @@ register_activation_hook(
 	}
 );
 
-define( 'TCOC_SCRAPED_OPTION_SECRET', 'tasteofcinemascraped_secret' );
-define( 'TCOC_SCRAPED_META_SOURCE_URL', '_tasteofcinema_source_url' );
-define( 'TCOC_SCRAPED_WEBP_QUALITY', 82 );
-
 add_action( 'rest_api_init', 'tasteofcinemascraped_register_routes' );
 add_action( 'admin_menu', 'tasteofcinemascraped_admin_menu' );
 add_action( 'admin_init', 'tasteofcinemascraped_save_settings' );
 
 // Quality Engine Hooks
+add_action( 'init', function() {
+    register_meta( 'post', '_toc_translation_quality_score', [
+        'show_in_rest' => true,
+        'single'       => true,
+        'type'         => 'integer',
+        'auth_callback'=> function() {
+            return current_user_can( 'edit_posts' );
+        }
+    ] );
+} );
+
 add_action( 'rest_api_init', array( 'TOC_Quality_REST', 'register_routes' ) );
 add_action( 'admin_menu', array( 'TOC_Quality_Admin', 'register_menus' ) );
 add_action( 'admin_init', array( 'TOC_Quality_Admin', 'register_ajax_hooks' ) );
@@ -72,6 +87,9 @@ add_action( 'plugins_loaded', function() {
 
     $ajaxHandler = new \TasteOfCinema\Admin\ScraperAjaxHandler();
     $ajaxHandler->init( $runner );
+
+    $dualPublishing = new \TasteOfCinema\Providers\DualPublishingServiceProvider();
+    $dualPublishing->init();
 });
 
 function tasteofcinemascraped_admin_menu() {
