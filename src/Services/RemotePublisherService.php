@@ -126,9 +126,12 @@ class RemotePublisherService {
             'Content-Type' => 'application/json',
         ] );
 
+        $post_data         = $payload->toArray();
+        $post_data['tags'] = $this->resolveTags( $payload->tags );
+
         $response = wp_remote_post( $this->remote_url . '/wp-json/wp/v2/posts', [
             'headers' => $headers,
-            'body'    => wp_json_encode( $payload->toArray() ),
+            'body'    => wp_json_encode( $post_data ),
             'timeout' => 30,
         ] );
 
@@ -149,6 +152,71 @@ class RemotePublisherService {
         }
 
         return (int) $data['id'];
+    }
+
+    /**
+     * Resolve tag names/slugs to remote term IDs, creating missing tags on the remote site.
+     *
+     * @param array $tags Array of ['name' => string, 'slug' => string] or plain strings.
+     * @return int[] Remote tag IDs.
+     */
+    private function resolveTags( array $tags ): array {
+        if ( empty( $tags ) || empty( $this->remote_url ) ) {
+            return [];
+        }
+
+        $auth_headers = $this->getAuthHeader();
+        $ids          = [];
+
+        foreach ( $tags as $tag ) {
+            $name = '';
+            $slug = '';
+            if ( is_array( $tag ) ) {
+                $name = trim( (string) ( $tag['name'] ?? '' ) );
+                $slug = trim( (string) ( $tag['slug'] ?? '' ) );
+            } elseif ( is_string( $tag ) ) {
+                $name = trim( $tag );
+            }
+            if ( $name === '' ) {
+                continue;
+            }
+            if ( $slug === '' ) {
+                $slug = sanitize_title( $name );
+            }
+
+            // 1. Search by slug.
+            $search = wp_remote_get(
+                $this->remote_url . '/wp-json/wp/v2/tags?slug=' . urlencode( $slug ),
+                [ 'headers' => $auth_headers, 'timeout' => 10 ]
+            );
+            if ( ! is_wp_error( $search ) ) {
+                $data = json_decode( wp_remote_retrieve_body( $search ), true );
+                if ( ! empty( $data[0]['id'] ) ) {
+                    $ids[] = (int) $data[0]['id'];
+                    continue;
+                }
+            }
+
+            // 2. Create tag on remote.
+            $create = wp_remote_post(
+                $this->remote_url . '/wp-json/wp/v2/tags',
+                [
+                    'headers' => array_merge( $auth_headers, [ 'Content-Type' => 'application/json' ] ),
+                    'body'    => wp_json_encode( [ 'name' => $name, 'slug' => $slug ] ),
+                    'timeout' => 10,
+                ]
+            );
+            if ( ! is_wp_error( $create ) ) {
+                $data = json_decode( wp_remote_retrieve_body( $create ), true );
+                if ( ! empty( $data['id'] ) ) {
+                    $ids[] = (int) $data['id'];
+                } else {
+                    error_log( '[TOC-DUAL-PUBLISH] Failed to create remote tag: ' . $name );
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /**

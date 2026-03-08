@@ -127,11 +127,11 @@ class DualPublishingServiceProvider {
             }
         }
 
-        $tag_names = [];
+        $tags_data = [];
         $tags = wp_get_post_tags( $post->ID );
         if ( ! is_wp_error( $tags ) && ! empty( $tags ) ) {
             foreach ( $tags as $tag ) {
-                $tag_names[] = $tag->name;
+                $tags_data[] = [ 'name' => $tag->name, 'slug' => $tag->slug ];
             }
         }
 
@@ -147,7 +147,7 @@ class DualPublishingServiceProvider {
             $post->post_content,
             'publish',
             $categories,
-            $tag_names,
+            $tags_data,
             null,
             $meta,
             null,

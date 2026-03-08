@@ -514,15 +514,28 @@ def scrape_article(source_url: str, max_pages: int = 10) -> ScrapedArticle:
         else:
             acc_html = "\n\n".join(all_content_html)
             acc_plain = "\n\n".join(all_content_plain)
-            new_html = _strip_overlap(acc_html, data["content_html"] or "")
-            new_plain = _strip_overlap(acc_plain, data["content_plain"] or "")
-            new_html = (new_html or "").strip()
-            new_plain = (new_plain or "").strip()
+            raw_plain = (data["content_plain"] or "").strip()
+            raw_html  = (data["content_html"]  or "").strip()
+
+            new_plain = (_strip_overlap(acc_plain, raw_plain) or "").strip()
+            new_html  = (_strip_overlap(acc_html,  raw_html)  or "").strip()
+
+            # Guard 1: plain-text says this page is entirely duplicate.
+            # Happens when HTML attributes differ slightly (nonce/ad IDs) so
+            # HTML _strip_overlap fails, but plain text is identical.
+            if not new_plain:
+                break
+
+            # Guard 2: start of new page already appears in accumulated content.
+            # Handles full-article repeats when /slug/2/ redirects back to page 1.
+            sample = re.sub(r'\s+', ' ', raw_plain[:300]).strip()
+            if len(sample) >= 100 and sample in acc_plain:
+                break
+
             if new_html:
                 all_content_html.append(new_html)
             if new_plain:
                 all_content_plain.append(new_plain)
-            # If this page was entirely duplicate, stop pagination
             if not new_html and not new_plain:
                 break
         for im in data["images"]:

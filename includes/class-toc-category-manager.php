@@ -85,26 +85,54 @@ class TOC_Category_Manager {
 			return 0;
 		}
 
-		$clean_names = array();
+		$clean_names   = array();
+		$source_slugs  = array();
 		foreach ( $source_names as $item ) {
 			$name = '';
+			$slug = '';
 			if ( is_array( $item ) && isset( $item['name'] ) ) {
 				$name = trim( (string) $item['name'] );
+				if ( ! empty( $item['slug'] ) ) {
+					$slug = trim( (string) $item['slug'] );
+				}
 			} elseif ( is_string( $item ) ) {
 				$name = trim( $item );
 			}
 			if ( $name !== '' ) {
 				$clean_names[] = $name;
 			}
+			if ( $slug !== '' ) {
+				$source_slugs[] = $slug;
+			}
 		}
 
 		// Edge case: empty input (FR-004/FR-005 rationale line 98).
-		if ( empty( $clean_names ) ) {
+		if ( empty( $clean_names ) && empty( $source_slugs ) ) {
 			$term = get_term_by( 'slug', $default_cat['slug'], 'category' );
 			return $term ? (int) $term->term_id : 0;
 		}
 
-		// Phase 1: Static Map.
+		// Phase 0: Direct slug match — fastest path.
+		// When Python translator passes {slug}, skip name-based heuristics entirely.
+		$valid_cat_slugs = array_column( $categories, 'slug' );
+		foreach ( $source_slugs as $slug ) {
+			// Direct match against predefined category slugs.
+			if ( in_array( $slug, $valid_cat_slugs, true ) ) {
+				$term = get_term_by( 'slug', $slug, 'category' );
+				if ( $term ) {
+					return (int) $term->term_id;
+				}
+			}
+			// Mapped slug (e.g. 'lists' → 'film-lists').
+			if ( isset( $source_slug_map[ $slug ] ) ) {
+				$term = get_term_by( 'slug', $source_slug_map[ $slug ], 'category' );
+				if ( $term ) {
+					return (int) $term->term_id;
+				}
+			}
+		}
+
+		// Phase 1: Static Map (on sanitized names — legacy / non-slug sources).
 		foreach ( $clean_names as $name ) {
 			$source_slug = sanitize_title( $name );
 			if ( isset( $source_slug_map[ $source_slug ] ) ) {
